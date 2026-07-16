@@ -8,35 +8,64 @@ const client = new OpenRouter({
   apiKey: process.env.API_KEY,
 });
 
+const generatingSystemPrompt = ({ question = "", responses = [] }) => {
+  return `
+    
+    You're an EXPERT EVAULATOR, you analyze responses from multiple models like Gemini, Claude & Openai and provide the best and most accurate response.
+
+    -- Rules: 
+     - Don't add AI generated text before or after response, or in between response or any extra response
+     - Give the single best and most accurate response based on the user question and responses from multiple model
+     - Analyze question and user prompt very carefully, I mean each and eveyline.
+     - Don't copy from different response, rather than that provide the most accurate response by analyzing all the responses
+     - You have give accurate and structured output 
+    
+
+    -- User Query: 
+     - ${question}
+    
+    -- Responses From Models:
+
+    ${responses
+      .map((res) => {
+        return `[${res?.model ?? ""}]: ${res?.output ?? ""}`;
+      })
+      .join("\n")}
+    `;
+};
+
 const llm = async ({
   model = "openai/gpt-4o-mini",
   question,
   system_prompt,
 }) => {
+  console.log("System Prompt ", system_prompt);
+  const messages = system_prompt
+    ? [
+        {
+          role: "system",
+          content: system_prompt,
+        },
+        {
+          role: "user",
+          content: question,
+        },
+      ]
+    : [
+        {
+          role: "assistant",
+          content: "I will help you with whatever question you have",
+        },
+        {
+          role: "user",
+          content: question,
+        },
+      ];
+
   const response = await client.chat.send({
     chatRequest: {
       model,
-      messages: system_prompt
-        ? [
-            {
-              role: "system",
-              content: system_prompt,
-            },
-            {
-              role: "user",
-              content: question,
-            },
-          ]
-        : [
-            {
-              role: "assistant",
-              content: "I will help you with whatever question you have",
-            },
-            {
-              role: "user",
-              content: question,
-            },
-          ],
+      messages: messages,
     },
   });
 
@@ -60,15 +89,40 @@ async function runCLI() {
     const spinner = ora("Generating your answer...").start();
 
     try {
-      // API call to LLM
-      const response = await llm({ question });
+      // API calls to LLM
+      const promises = [
+        llm({ model: "openai/gpt-oss-120b:free", question }),
+        llm({
+          model: "meta-llama/llama-3.3-70b-instruct:free",
+          question,
+        }),
+        llm({ model: "google/gemma-4-31b-it:free", question }),
+      ];
+      const responses = [];
 
-      const finalResponse = response.choices[0].message.content;
+      const results = await Promise.allSettled(promises);
+
+      results.forEach((res) => {
+        if (res.status === "fulfilled") {
+          const model = res?.value?.model ?? "";
+          const output = res?.value?.choices[0]?.message?.content ?? "";
+
+          responses.push({ model, output });
+        }
+      });
+
+      const finalResponse = await llm({
+        model: "openrouter/free",
+        question,
+        system_prompt: generatingSystemPrompt({ question, responses }),
+      });
 
       // Green success message
       spinner.succeed(chalk.green("Answer generated successfully:\n"));
 
-      process.stdout.write(finalResponse);
+    //   console.log("FinalResponse ", finalResponse);
+
+      process.stdout.write(finalResponse.choices[0].message.content);
       console.log(chalk.gray("\n======================================="));
     } catch (apiError) {
       spinner.fail(chalk.red("Failed to generate an answer."));
