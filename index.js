@@ -8,6 +8,24 @@ const client = new OpenRouter({
   apiKey: process.env.API_KEY,
 });
 
+const formatMarkdownTerminal = (text) => {
+  if (!text) return "";
+
+  // Split the text everywhere there is a double asterisk '**'
+  const parts = text.split("**");
+
+  // Map over the pieces: odd indexes are the ones that were inside the **
+  return parts
+    .map((part, index) => {
+      if (index % 2 !== 0) {
+        // Apply bold style to the text that was wrapped in asterisks
+        return chalk.bold.cyan(part);
+      }
+      return part;
+    })
+    .join("");
+};
+
 const generatingSystemPrompt = ({ question = "", responses = [] }) => {
   return `
     
@@ -18,7 +36,8 @@ const generatingSystemPrompt = ({ question = "", responses = [] }) => {
      - Give the single best and most accurate response based on the user question and responses from multiple model
      - Analyze question and user prompt very carefully, I mean each and eveyline.
      - Don't copy from different response, rather than that provide the most accurate response by analyzing all the responses
-     - You have give accurate and structured output 
+     - Compare the outputs, identify the strongest parts, and generate the best possible accurate & structured final response
+     - You must After your final response explain what part you take from which exact model (From below Response From Models List) and why there output was bad or good
     
 
     -- User Query: 
@@ -46,10 +65,6 @@ const llm = async ({
           role: "system",
           content: system_prompt,
         },
-        {
-          role: "user",
-          content: question,
-        },
       ]
     : [
         {
@@ -73,9 +88,19 @@ const llm = async ({
 };
 
 async function runCLI() {
-  console.log(chalk.gray.bold("==========================================="));
-  console.log(chalk.cyan.bold("  === Welcome to the Node.js CLI Demo ===  "));
-  console.log(chalk.gray.bold("==========================================="));
+  console.log(
+    chalk.gray.bold(
+      "=========================================================",
+    ),
+  );
+  console.log(
+    chalk.cyan.bold("  === Welcome to the Project-Self-Consistency Demo ===  "),
+  );
+  console.log(
+    chalk.gray.bold(
+      "=========================================================",
+    ),
+  );
 
   // Take user prompt
   const question = await input({
@@ -91,12 +116,12 @@ async function runCLI() {
     try {
       // API calls to LLM
       const promises = [
-        llm({ model: "openai/gpt-oss-120b:free", question }),
+        llm({ model: "openrouter/free", question }),
         llm({
-          model: "meta-llama/llama-3.3-70b-instruct:free",
+          model: "openrouter/free",
           question,
         }),
-        llm({ model: "google/gemma-4-31b-it:free", question }),
+        llm({ model: "openrouter/free", question }),
       ];
       const responses = [];
 
@@ -120,9 +145,9 @@ async function runCLI() {
       // Green success message
       spinner.succeed(chalk.green("Answer generated successfully:\n"));
 
-    //   console.log("FinalResponse ", finalResponse);
-
-      process.stdout.write(finalResponse.choices[0].message.content);
+      process.stdout.write(
+        formatMarkdownTerminal(finalResponse.choices[0].message.content),
+      );
       console.log(chalk.gray("\n======================================="));
     } catch (apiError) {
       spinner.fail(chalk.red("Failed to generate an answer."));
