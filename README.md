@@ -7,7 +7,7 @@ The `index.js` script implements an advanced AI querying mechanism that leverage
 
 Key features in `index.js`:
 - Interactive CLI prompt for user questions.
-- Parallel asynchronous requests to different AI models (`openai/gpt-4o-mini-2024-07-18`, `google/gemini-2.5-flash-lite`, and a free openrouter model).
+- Parallel asynchronous requests to different AI models (`openai/gpt-4o-mini-2024-07-18`, `google/gemini-2.5-flash-lite`, `anthropic/claude-sonnet-4.6` and a free openrouter model).
 - A Chain-of-Thought (CoT) system prompt that forces a final evaluator model to compare the initial outputs and combine their strongest parts.
 - Rich terminal output using styled Markdown.
 
@@ -38,7 +38,7 @@ This project relies on several modern NPM packages to create a smooth CLI experi
 
 By using OpenRouter in this project:
 - We only need a **single API key** to access multiple different LLMs.
-- We can easily swap models in and out by just changing a model string identifier (e.g., `"google/gemini-2.5-flash-lite"` or `"openai/gpt-4o-mini-2024-07-18"`).
+- We can easily swap models in and out by just changing a model string identifier (e.g., `"google/gemini-2.5-flash-lite"` or `"openai/gpt-4o-mini-2024-07-18"`, `"anthropic/claude-sonnet-4.6"`).
 - We utilize standard OpenAI-compatible SDKs (like `@openrouter/sdk`) to manage the underlying API calls.
 
 ## Reason For Using OpenRouter
