@@ -3,6 +3,22 @@ import { input } from "@inquirer/prompts";
 import ora from "ora";
 import chalk from "chalk";
 import { OpenRouter } from "@openrouter/sdk";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+
+// Configure marked to use the terminal renderer
+marked.setOptions({
+  renderer: new TerminalRenderer({
+    heading: chalk.cyan.bold,
+    strong: chalk.bold.yellow,
+    em: chalk.italic,
+    blockquote: chalk.gray.italic,
+    listitem: chalk.white,
+    firstHeading: chalk.whiteBright.bold,
+    list: chalk.yellow,
+    link: chalk.blue.bold,
+  }),
+});
 
 const client = new OpenRouter({
   apiKey: process.env.API_KEY,
@@ -10,35 +26,35 @@ const client = new OpenRouter({
 
 const formatMarkdownTerminal = (text) => {
   if (!text) return "";
-
-  // Split the text everywhere there is a double asterisk '**'
-  const parts = text.split("**");
-
-  // Map over the pieces: odd indexes are the ones that were inside the **
-  return parts
-    .map((part, index) => {
-      if (index % 2 !== 0) {
-        // Apply bold style to the text that was wrapped in asterisks
-        return chalk.bold.cyan(part);
-      }
-      return part;
-    })
-    .join("");
+  return marked.parse(text.replace(/#+/g, "") + "\n");
 };
 
 const generatingSystemPrompt = ({ question = "", responses = [] }) => {
   return `
     
-    You're an EXPERT EVAULATOR, you analyze responses from multiple models like Gemini, Claude & Openai and provide the best and most accurate response.
+  You're an EXPERT EVALUATOR. You analyze responses based on similarity, logic, relevancy, facts, accuracy and etc  step-by-step using a Chain-of-Thought approach from multiple models like Gemini, Claude & Openai and provide the best and most accurate response.
 
     -- Rules: 
      - Don't add AI generated text before or after response, or in between response or any extra response
      - Give the single best and most accurate response based on the user question and responses from multiple model
-     - Analyze question and user prompt very carefully, I mean each and eveyline.
+     - Analyze question and user prompt very carefully, I mean each and every line.
      - Don't copy from different response, rather than that provide the most accurate response by analyzing all the responses
      - Compare the outputs, identify the strongest parts, and generate the best possible accurate & structured final response
-     - You must After your final response explain what part you take from which exact model (From below Response From Models List) and why there output was bad or good
+     - You must After your final response explain what part you take from which exact model (From below Response From Models List) and why their output was bad or good
+     - Output format MUST strictly follow the valid Markdown structure provided in the Output Example below. Do NOT use custom tags like [Q] or [A]: as structural elements. Use real markdown syntax (#, ###, *, ---).
+     - If you haven't got any model response, just write no model response are given
+
+    -- Output Example (Follow this exactly using Markdown): 
+    # Question: <User Question>
     
+    ### Answer
+    <Output of Answer goes here, which is the Final Most Accurate Response. Use markdown lists (* item) or bolding (**text**) for structural visibility.>
+    
+    ---
+    
+    ### Model Comparison & Synthesis
+    **<Model Name 1>**: <explanation of what part you take from which exact model and why their output was bad or good>
+    **<Model Name 2>**: <explanation of what part you take from which exact model and why their output was bad or good>
 
     -- User Query: 
      - ${question}
@@ -58,7 +74,6 @@ const llm = async ({
   question,
   system_prompt,
 }) => {
-  console.log("System Prompt ", system_prompt);
   const messages = system_prompt
     ? [
         {
@@ -81,6 +96,7 @@ const llm = async ({
     chatRequest: {
       model,
       messages: messages,
+      temperature: 0.7,
     },
   });
 
@@ -116,9 +132,9 @@ async function runCLI() {
     try {
       // API calls to LLM
       const promises = [
-        llm({ model: "openrouter/free", question }),
+        llm({ model: "openai/gpt-4o-mini-2024-07-18", question }),
         llm({
-          model: "openrouter/free",
+          model: "google/gemini-2.5-flash-lite",
           question,
         }),
         llm({ model: "openrouter/free", question }),
@@ -137,13 +153,13 @@ async function runCLI() {
       });
 
       const finalResponse = await llm({
-        model: "openrouter/free",
+        model: "anthropic/claude-sonnet-4.6",
         question,
         system_prompt: generatingSystemPrompt({ question, responses }),
       });
 
       // Green success message
-      spinner.succeed(chalk.green("Answer generated successfully:\n"));
+      spinner.succeed(chalk.green.bold("Answer generated successfully:\n"));
 
       process.stdout.write(
         formatMarkdownTerminal(finalResponse.choices[0].message.content),
